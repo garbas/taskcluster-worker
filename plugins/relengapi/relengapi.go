@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"time"
+    "strings"
 
 	"github.com/pkg/errors"
 	schematypes "github.com/taskcluster/go-schematypes"
@@ -107,9 +108,28 @@ func (p *plugin) NewTaskPlugin(options plugins.TaskPluginOptions) (plugins.TaskP
 
 	// stolen from relengapi-proxy
 	director := func(req *http.Request) {
-		req.URL.Scheme = "https"
-		req.URL.Host = p.config.Host
-		req.Host = p.config.Host
+		if strings.HasPrefix(req.URL.Path, "/tooltool") {
+			req.URL.Scheme = "https"
+			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/tooltool")
+			req.URL.RawPath = ""
+			req.URL.Host = "tooltool.mozilla-releng.net"
+			req.Host = "tooltool.mozilla-releng.net"
+		} else if strings.HasPrefix(req.URL.Path, "/treestatus") {
+			req.URL.Scheme = "https"
+			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/treestatus")
+			req.URL.RawPath = ""
+			req.URL.Host = "treestatus.mozilla-releng.net"
+			req.Host = "treestatus.mozilla-releng.net"
+		} else if strings.HasPrefix(req.URL.Path, "/mapper") {
+			req.URL.Scheme = "https"
+			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/mapper")
+			req.URL.RawPath = ""
+			req.URL.Host = "mapper.mozilla-releng.net"
+			req.Host = "mapper.mozilla-releng.net"
+		} else {
+            // ignore everything else
+			return
+		}
 		tok, err := tp.getToken(p.config.Token)
 		if err != nil {
 			err = errors.Wrap(err, "Error retrieving token")
@@ -158,8 +178,7 @@ func (p *taskPlugin) getToken(issuingToken string) (string, error) {
 		expires := now.Add(tmpTokenLifetime)
 		debug("Generating new temporary token; expires at " + expires.String())
 		urlPrefix := fmt.Sprintf("https://%s", p.relengapiHost)
-		tok, err := getTmpToken(
-			urlPrefix, issuingToken, expires, p.permissions)
+		tok, err := getTmpToken(issuingToken, expires, p.permissions)
 		if err != nil {
 			return "", err
 		}
